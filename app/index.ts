@@ -3,14 +3,17 @@ import path from "path";
 import archiver from "archiver";
 
 const targets = ["160x600","300x250","300x600","336x280","728x90","970x90"];
-// const targets = ["160x600"];
+const GG_ADS = true;
 targets.forEach((target) => {
     const targetDirPath = path.join("../../", target);
     if(!fs.existsSync(targetDirPath)){
         console.error("Dont find " + targetDirPath);
         return;
     }
-    const commonDirPath = "../../common";
+    let commonDirPath = "../../common";
+    if(GG_ADS){
+        commonDirPath += 2;
+    }
     const commons = fs.readdirSync(commonDirPath);
     commons.forEach(common => {
         const filePath = path.join(commonDirPath, common);
@@ -20,6 +23,12 @@ targets.forEach((target) => {
         }
         fs.writeFileSync(path.join(targetDirPath, common), file);
     });
+    const dataJsonFile = fs.readFileSync(path.join(targetDirPath, "data.json"));
+    const dataJsonOrigin = dataJsonFile.toString();
+    if(GG_ADS){
+        const dataJson = replaceImageDir(JSON.parse(dataJsonOrigin), "vinh/");
+        fs.writeFileSync(path.join(targetDirPath, "data.json"), dataJson);
+    }
     
     const zipOutDir = "../../out";
     if(!fs.existsSync(zipOutDir)) fs.mkdirSync(zipOutDir);
@@ -29,12 +38,19 @@ targets.forEach((target) => {
         console.log("ziped: " + archive.pointer() + ' total bytes');
     });
     archive.pipe(fileWS);
-    archive.directory(targetDirPath, false);
+    if(GG_ADS){
+        archive.file(path.join(targetDirPath, "index.html"), { name: "index.html" });
+        archive.file(path.join(targetDirPath, "data.json"), { name: "data.json" });
+    }
+    else{
+        archive.directory(targetDirPath, false);
+    }
     archive.finalize().finally(() => {
         commons.forEach(common => {
             const filePath = path.join(targetDirPath, common);
             fs.rmSync(filePath);
         });
+        fs.writeFileSync(path.join(targetDirPath, "data.json"), dataJsonOrigin);
     });
 });
 
@@ -44,4 +60,12 @@ function modifyIndexFile(file: string, target: string){
     file = file.replace(/\*2/g, height);
     
     return file;
+}
+
+function replaceImageDir(obj: any, imgDir: string){
+    obj["assets"].forEach((asset: any) => {
+        asset["u"] = imgDir;
+    });
+
+    return JSON.stringify(obj);
 }
